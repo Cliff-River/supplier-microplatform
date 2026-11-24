@@ -1,12 +1,13 @@
 # 供应商微平台 —— 需求与设计开发方案
 
-> 文档版本：v1.4（2026-11-24）
+> 文档版本：v1.5（2026-11-24）
 > 适用项目：`supplier-microplatform-nestjs`（后端）、`supplier-microplatform-nextjs`（前端）
 > 说明：本文在原始需求基础上补齐总体架构、账号权限、状态机、数据模型、API、邮件与**逐页设计方案**。文中标注「设计假设」的条目为当前方案约定，实施前可调整。
 > v1.1 变更：采纳评审意见——增加可选验收单、供应商历史报价、报价对比增强；明确订单完成人；发票审核移出本期；账号首次登录强制改密；附件签名下载；新增审计日志与 ADR。
 > v1.2 变更：采纳 `docker-compose` 本地开发环境（PostgreSQL + Mailpit），新增 2.6 节与 ADR-012。
 > v1.3 变更：补充「选标 → 生成采购申请书 → 下单」完整链路；采购申请书计划由大模型生成，明确移出本期，本期选标即下单（见 1.6-A、ADR-013）。
 > v1.4 变更：明确一标一单与合同创建时机；补充审计数据边界与保留期；术语表增加支付证明单；测试补充 award 不产生采购申请书。
+> v1.5 变更：补齐合同线下签署完成的页面入口与验收项；明确验收单版本规则（签署前可重传、签署后禁止）；订单完成后内部仍可签署；明确本期发票金额与重复发票号不校验；补充归档项目只读表现。
 
 ## 目录
 
@@ -601,8 +602,8 @@ stateDiagram-v2
 2. 供应商可在订单详情上传验收单（可选），文件类型为 PDF/图片；上传后内部可下载查看。
 3. 内部确认无误后「签署」：上传签署版验收单，或标记为已签署（二选一，建议上传签署版留档）。
 4. 验收单状态：`UPLOADED`（供应商已上传）→ `SIGNED`（内部已签署）；未上传时不建记录。
-5. 验收单附件使用 `attachment(scope=ORDER, kind=ACCEPTANCE_FILE / SIGNED_ACCEPTANCE)`；每次上传保留历史，最新版本在页面突出显示。
-6. 订单完成后，供应商不可再上传或修改验收单；内部仍可查看历史文件。
+5. 验收单记录每个订单最多一条；签署前供应商可重新上传，附件使用 `attachment(scope=ORDER, kind=ACCEPTANCE_FILE / SIGNED_ACCEPTANCE)` 保留版本历史，以最新版本为准；签署后禁止再上传或替换。
+6. 订单完成后，供应商不可再上传或修改验收单；**内部仍可对已上传的验收单完成签署**，历史文件保持可查看。
 
 ### 4.4 发票与请款
 
@@ -611,7 +612,8 @@ stateDiagram-v2
 3. 一个订单允许多次提交，每次生成独立记录；提交后给项目联系人 + 创建者发邮件。
 4. **本期不做发票审核/驳回**：内部只查看提交记录与附件，不改变记录状态；财务审核后续接入。
 5. 订单标记完成后，供应商端「提交发票/请款」按钮禁用，服务端同步拒绝。
-6. **后续演进（本期不实施）**：发票校验 → 对账 → 支付证明单（付款申请书）生成；本期仅保留提交与查看，不引入校验/对账/付款状态与对应接口（见 1.6）。
+6. **本期不校验金额上限与重复发票号**：单张与累计金额均按供应商填写记录，不做上限拦截，也不检测同一发票号是否重复提交；差异留待后续对账阶段处理（见 1.6-B）。
+7. **后续演进（本期不实施）**：发票校验 → 对账 → 支付证明单（付款申请书）生成；本期仅保留提交与查看，不引入校验/对账/付款状态与对应接口（见 1.6）。
 
 ### 4.5 邮件通知矩阵
 
@@ -698,7 +700,7 @@ enum MailStatus        { PENDING SENT FAILED }
 | `order` | id, orderNo, projectId, inquiryId, supplierId, quoteId, amount, currency, status, createdByUserId, completedAt, createdAt, updatedAt | `orderNo` 唯一、`inquiryId` 唯一、`quoteId` 唯一；`(supplierId, status)` 索引 | 选标生成的订单 |
 | `contract` | id, orderId, status, supplierNote, submittedAt, returnedAt, completedAt, updatedAt | `orderId` 唯一 | 订单合同主记录 |
 | `contract_file` | id, contractId, attachmentId, direction, note, uploadedByType, uploadedById, createdAt | `(contractId, createdAt)` 索引 | 合同文件版本（供应商上传/内部回传） |
-| `acceptance_certificate` | id, orderId, status, supplierFileId, signedFileId, uploadedBySupplierUserId, signedByUserId, uploadedAt, signedAt, updatedAt | `orderId` 唯一 | 可选验收单；未上传时无记录，上传后只能签署一次 |
+| `acceptance_certificate` | id, orderId, status, supplierFileId, signedFileId, uploadedBySupplierUserId, signedByUserId, uploadedAt, signedAt, updatedAt | `orderId` 唯一 | 可选验收单；未上传时无记录；签署前可重新上传，签署后不可重复签署 |
 | `invoice` | id, orderId, supplierId, invoiceNo, amount, currency, note, submittedBySupplierUserId, createdAt | `(orderId, createdAt)` 索引 | 发票与请款提交记录；本期无审核状态 |
 | `attachment` | id, scope, scopeId, kind, fileName, mimeType, size, storageKey, uploadedByType, uploadedById, createdAt | `(scope, scopeId)` 索引 | 通用附件；验收单使用 `scope=ORDER` |
 | `audit_log` | id, actorType, actorId, actorName, action, targetType, targetId, summary, beforeData, afterData, ip, userAgent, createdAt | `(targetType, targetId)`、`(actorType, actorId)`、`createdAt` 索引 | 关键操作审计 |
@@ -715,7 +717,7 @@ enum MailStatus        { PENDING SENT FAILED }
 - 删除供应商账号时同步清理其会话记录（`supplier_session`），并保留历史业务数据中的用户 ID。
 - 附件与业务记录不做数据库级级联，删除/作废时由服务层显式处理。
 - 评级聚合、订单状态、合同状态更新必须在事务中完成，避免统计与明细不一致。
-- 验收单每个订单最多一条记录；供应商上传后内部才能签署，签署后不可重复签署；订单完成后禁止再上传。
+- 验收单每个订单最多一条记录；供应商上传后内部才能签署，签署后不可重复签署且不可再上传；订单完成后供应商禁止再上传，内部仍可签署已上传的验收单。
 - 关键操作（发送询价、关闭/重开、选标、合同提交/回传、订单完成/取消、验收单签署、账号停用）写入 `audit_log`，与业务更新同事务或业务提交后立即写入。
 
 ### 5.6 附件存储
@@ -1188,7 +1190,7 @@ flowchart TD
 └────────────────────────────────────────────────────────────┘
 ```
 
-- **标题行**：面包屑、项目名称 + 编号、状态 Chip、编辑/归档（有权限时显示）。
+- **标题行**：面包屑、项目名称 + 编号、状态 Chip、编辑/归档（有权限且项目 `ACTIVE` 时显示）；`ARCHIVED` 时隐藏编辑、归档、新增询价项等写操作，服务端同步拒绝。
 - **摘要卡**：客户、负责人、联系人（电话/邮箱可点击复制）、创建时间、项目描述（折叠长文本）。
 - **Tabs**：
   - 询价项：卡片列表，显示状态、截止倒计时、受邀/已报价数量、快捷操作（查看、关闭、重新开放、发送）；
@@ -1322,11 +1324,11 @@ flowchart TD
 
 - **头部**：订单号、项目/询价项、供应商、金额、订单状态、合同状态、验收单状态；操作按钮按权限与状态显示。
 - **订单信息 Tab**：项目、询价项、中标报价摘要、内部联系人、订单时间线。
-- **合同 Tab**：合同状态、供应商上传版本、内部回传版本，均可下载；`SUBMITTED` 时可上传修订版并回传（确认后邮件通知供应商）。
-- **验收单 Tab**：未上传时展示「供应商尚未上传（可选）」；已上传时可下载并「签署」（上传签署版或标记已签署）；签署后展示签署人、时间与文件。
+- **合同 Tab**：合同状态、供应商上传版本、内部回传版本，均可下载；`SUBMITTED` 时可上传修订版并回传（确认后邮件通知供应商）；`RETURNED` 后可「标记线下签署完成」（可选，仅创建者/管理员）。
+- **验收单 Tab**：未上传时展示「供应商尚未上传（可选）」；已上传时可下载并「签署」（上传签署版或标记已签署）；签署前供应商可重新上传；签署后展示签署人、时间与文件；订单完成后仍可签署已上传的验收单。
 - **发票与请款 Tab**：提交记录与附件，只读；无审核/驳回操作；提示本期不做财务审核。
-- **完成/取消**：仅项目创建者或管理员可操作；标记完成需确认，完成后禁止新的合同/验收单/发票提交，但历史记录保留。
-- **接口**：`GET /api/orders/:id`、`POST /api/orders/:id/complete`、`/cancel`、`POST /api/orders/:id/contract/return`、`POST /api/orders/:id/acceptance/sign`。
+- **完成/取消**：仅项目创建者或管理员可操作；订单「标记完成」与合同「线下签署完成」是两个独立动作。标记完成需确认，完成后禁止供应商新的合同/验收单/发票提交，但历史记录保留，内部仍可签署已上传的验收单。
+- **接口**：`GET /api/orders/:id`、`POST /api/orders/:id/complete`、`/cancel`、`POST /api/orders/:id/contract/return`、`POST /api/orders/:id/contract/complete`、`POST /api/orders/:id/acceptance/sign`。
 - **响应式**：Tabs 横向滚动；文件与操作按钮在移动端纵向排列。
 
 ### 8.6 供应商端页面
@@ -1529,8 +1531,8 @@ flowchart TD
 | 报价 | 截止后拒绝、非受邀拒绝、upsert 与版本递增、邮件触发、历史报价只读与数据隔离 |
 | 选标/订单 | 重复选标拒绝、一标一单、订单号生成、合同初始化、订单完成权限、事务一致性；本期 `award` 不创建采购申请书记录、不调用任何外部模型服务 |
 | 合同 | 状态迁移、权限、文件版本记录 |
-| 验收单 | 可选上传、签署前置校验、重复签署拒绝、订单完成后拒绝 |
-| 发票 | 订单完成后拒绝、多次提交、金额校验、无审核状态 |
+| 验收单 | 可选上传、签署前置校验、重复签署拒绝、订单完成后供应商上传拒绝但内部仍可签署 |
+| 发票 | 订单完成后拒绝、多次提交、金额按填写记录（本期不校验上限与重复发票号）、无审核状态 |
 | 邮件 | 模板渲染、收件人去重、失败日志 |
 | 文件 | 类型/大小校验、签名 URL 过期/篡改拒绝、越权下载拒绝 |
 | 审计 | 关键操作写入 `audit_log`、操作人/目标/前后状态正确 |
@@ -1607,9 +1609,10 @@ flowchart TD
 - [ ] 询价关闭后可选一个供应商生成订单，并邮件通知供应商提交合同。
 - [ ] 供应商提交合同后状态更新、内部收到合同邮件。
 - [ ] 内部可回传修订版合同，供应商收到邮件并可下载。
+- [ ] 合同回传后，项目创建者或管理员可标记线下签署完成（可选），状态变为 `COMPLETED`。
 - [ ] 同一询价项不可重复选标。
 - [ ] 订单由项目创建者或管理员标记完成；其他内部用户不可操作。
-- [ ] 验收单为可选流程：供应商可上传，内部可签署；未上传不影响订单完成。
+- [ ] 验收单为可选流程：供应商可上传，内部可签署；未上传不影响订单完成；订单完成后内部仍可签署已上传的验收单。
 - [ ] 本期选标后直接生成订单，不包含采购申请书生成、修订与确认环节。
 
 ### 12.5 发票与请款
@@ -1618,6 +1621,7 @@ flowchart TD
 - [ ] 提交后内部收到邮件与附件。
 - [ ] 订单完成后提交入口禁用且服务端拒绝。
 - [ ] 本期内部仅查看发票记录，不提供审核/驳回操作。
+- [ ] 本期不校验发票单张/累计金额上限与重复发票号，仅记录提交内容。
 - [ ] 本期不包含发票校验、对账、支付证明单（付款申请书）生成功能。
 
 ### 12.6 页面与体验
