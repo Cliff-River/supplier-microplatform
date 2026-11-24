@@ -3,6 +3,12 @@
 /node_modules
 /build
 
+# generated prisma client
+/src/generated
+
+# local file storage
+/storage
+
 # TypeScript build cache
 *.tsbuildinfo
 

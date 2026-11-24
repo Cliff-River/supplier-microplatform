@@ -1,0 +1,575 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider     = "postgresql"
+  relationMode = "prisma"
+}
+
+// ---------------------------------------------------------------------------
+// 枚举
+// ---------------------------------------------------------------------------
+
+enum InternalRole {
+  ADMIN
+  MEMBER
+}
+
+enum SupplierStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum VisibilityScope {
+  ALL
+  SPECIFIED
+}
+
+enum ProjectStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum InquiryStatus {
+  DRAFT
+  OPEN
+  CLOSED
+  AWARDED
+  CANCELLED
+}
+
+enum InviteMailStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+enum OrderStatus {
+  PENDING_CONTRACT
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum ContractStatus {
+  PENDING_SUBMISSION
+  SUBMITTED
+  RETURNED
+  COMPLETED
+}
+
+enum AcceptanceStatus {
+  UPLOADED
+  SIGNED
+}
+
+enum AttachmentScope {
+  TEMP
+  PROJECT
+  INQUIRY
+  QUOTE
+  CONTRACT
+  ORDER
+  INVOICE
+  SUPPLIER
+}
+
+enum AttachmentKind {
+  GENERAL
+  QUOTE_FILE
+  CONTRACT_FILE
+  ACCEPTANCE_FILE
+  SIGNED_ACCEPTANCE
+  INVOICE_FILE
+  PAYMENT_REQUEST
+}
+
+enum UploaderType {
+  INTERNAL
+  SUPPLIER
+}
+
+enum AuditActorType {
+  INTERNAL
+  SUPPLIER
+  SYSTEM
+}
+
+enum MailStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+// ---------------------------------------------------------------------------
+// Better Auth：内部账号
+// ---------------------------------------------------------------------------
+
+model InternalUser {
+  id                 String    @id @default(cuid())
+  name               String
+  email              String    @unique
+  emailVerified      Boolean   @default(false)
+  image              String?
+  username           String    @unique
+  displayUsername    String?
+  role               InternalRole @default(MEMBER)
+  phone              String?
+  isActive           Boolean   @default(true)
+  mustChangePassword Boolean   @default(true)
+  deletedAt          DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  sessions InternalSession[]
+  accounts InternalAccount[]
+
+  @@map("internal_user")
+}
+
+model InternalSession {
+  id        String   @id @default(cuid())
+  expiresAt DateTime
+  token     String   @unique
+  ipAddress String?
+  userAgent String?
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user InternalUser @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([userId])
+  @@map("internal_session")
+}
+
+model InternalAccount {
+  id                    String    @id @default(cuid())
+  accountId             String
+  providerId            String
+  userId                String
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  user InternalUser @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([userId])
+  @@map("internal_account")
+}
+
+model InternalVerification {
+  id         String    @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([identifier])
+  @@map("internal_verification")
+}
+
+// ---------------------------------------------------------------------------
+// Better Auth：供应商账号
+// ---------------------------------------------------------------------------
+
+model SupplierUser {
+  id                 String    @id @default(cuid())
+  name               String
+  email              String    @unique
+  emailVerified      Boolean   @default(false)
+  image              String?
+  username           String    @unique
+  displayUsername    String?
+  supplierId         String
+  phone              String?
+  title              String?
+  isPrimary          Boolean   @default(false)
+  isActive           Boolean   @default(true)
+  mustChangePassword Boolean   @default(true)
+  deletedAt          DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  sessions SupplierSession[]
+  accounts SupplierAccount[]
+
+  @@index([supplierId])
+  @@map("supplier_user")
+}
+
+model SupplierSession {
+  id        String   @id @default(cuid())
+  expiresAt DateTime
+  token     String   @unique
+  ipAddress String?
+  userAgent String?
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user SupplierUser @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([userId])
+  @@map("supplier_session")
+}
+
+model SupplierAccount {
+  id                    String    @id @default(cuid())
+  accountId             String
+  providerId            String
+  userId                String
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  user SupplierUser @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([userId])
+  @@map("supplier_account")
+}
+
+model SupplierVerification {
+  id         String    @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([identifier])
+  @@map("supplier_verification")
+}
+
+// ---------------------------------------------------------------------------
+// 业务表
+// ---------------------------------------------------------------------------
+
+model Supplier {
+  id               String          @id @default(cuid())
+  code             String          @unique
+  name             String
+  shortName        String?
+  category         String?
+  address          String?
+  website          String?
+  taxId            String?
+  remark           String?
+  status           SupplierStatus  @default(ACTIVE)
+  visibilityScope  VisibilityScope @default(ALL)
+  ratingAvg        Decimal         @default(0) @db.Decimal(3, 1)
+  ratingCount      Int             @default(0)
+  createdByUserId  String
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  visibilityUsers SupplierVisibilityUser[]
+  ratings         SupplierRating[]
+  inquirySuppliers InquirySupplier[]
+  quotes          Quote[]
+  orders          Order[]
+
+  @@index([name])
+  @@index([status, visibilityScope])
+  @@map("supplier")
+}
+
+model SupplierVisibilityUser {
+  id         String   @id @default(cuid())
+  supplierId String
+  userId     String
+  createdAt  DateTime @default(now())
+
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([supplierId, userId])
+  @@index([userId])
+  @@map("supplier_visibility_user")
+}
+
+model SupplierRating {
+  id              String   @id @default(cuid())
+  supplierId      String
+  ratedByUserId   String
+  inquiryId       String
+  quoteQuality    Int
+  responseSpeed   Int
+  serviceAttitude Int
+  score           Decimal  @db.Decimal(3, 1)
+  comment         String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([supplierId, ratedByUserId, inquiryId])
+  @@index([supplierId])
+  @@map("supplier_rating")
+}
+
+model Project {
+  id              String        @id @default(cuid())
+  code            String        @unique
+  name            String
+  customerName    String?
+  description     String?
+  contactName     String
+  contactEmail    String
+  contactPhone    String?
+  status          ProjectStatus @default(ACTIVE)
+  createdByUserId String
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  archivedAt      DateTime?
+
+  inquiries Inquiry[]
+  orders    Order[]
+
+  @@index([status, createdAt])
+  @@index([createdByUserId])
+  @@map("project")
+}
+
+model Inquiry {
+  id              String        @id @default(cuid())
+  code            String        @unique
+  projectId       String
+  title           String
+  description     String?
+  quantity        Decimal       @db.Decimal(14, 3)
+  unit            String
+  deadline        DateTime
+  status          InquiryStatus @default(DRAFT)
+  openedAt        DateTime?
+  closedAt        DateTime?
+  awardedAt       DateTime?
+  createdByUserId String
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  project  Project          @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  invited  InquirySupplier[]
+  quotes   Quote[]
+  order    Order?
+
+  @@index([projectId, status])
+  @@index([status, deadline])
+  @@map("inquiry")
+}
+
+model InquirySupplier {
+  id         String           @id @default(cuid())
+  inquiryId  String
+  supplierId String
+  mailStatus InviteMailStatus @default(PENDING)
+  mailError  String?
+  sentAt     DateTime?
+  createdAt  DateTime         @default(now())
+
+  inquiry  Inquiry  @relation(fields: [inquiryId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([inquiryId, supplierId])
+  @@index([supplierId])
+  @@map("inquiry_supplier")
+}
+
+model Quote {
+  id           String    @id @default(cuid())
+  inquiryId    String
+  supplierId   String
+  unitPrice    Decimal   @db.Decimal(16, 2)
+  totalPrice   Decimal   @db.Decimal(16, 2)
+  currency     String    @default("CNY")
+  deliveryDays Int?
+  validUntil   DateTime? @db.Date
+  note         String?
+  version      Int       @default(1)
+  submittedAt  DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  inquiry  Inquiry  @relation(fields: [inquiryId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  order    Order?
+
+  @@unique([inquiryId, supplierId])
+  @@index([supplierId])
+  @@map("quote")
+}
+
+model Order {
+  id              String      @id @default(cuid())
+  orderNo         String      @unique
+  projectId       String
+  inquiryId       String      @unique
+  supplierId      String
+  quoteId         String      @unique
+  amount          Decimal     @db.Decimal(16, 2)
+  currency        String      @default("CNY")
+  status          OrderStatus @default(PENDING_CONTRACT)
+  createdByUserId String
+  completedAt     DateTime?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  project  Project  @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  inquiry  Inquiry  @relation(fields: [inquiryId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  quote    Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  contract Contract?
+  acceptance AcceptanceCertificate?
+  invoices Invoice[]
+
+  @@index([supplierId, status])
+  @@index([projectId])
+  @@map("order")
+}
+
+model Contract {
+  id            String         @id @default(cuid())
+  orderId       String         @unique
+  status        ContractStatus @default(PENDING_SUBMISSION)
+  supplierNote  String?
+  submittedAt   DateTime?
+  returnedAt    DateTime?
+  completedAt   DateTime?
+  updatedAt     DateTime       @updatedAt
+
+  order Order          @relation(fields: [orderId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  files ContractFile[]
+
+  @@map("contract")
+}
+
+model ContractFile {
+  id             String       @id @default(cuid())
+  contractId     String
+  attachmentId   String
+  direction      String
+  note           String?
+  uploadedByType UploaderType
+  uploadedById   String
+  createdAt      DateTime     @default(now())
+
+  contract Contract @relation(fields: [contractId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([contractId, createdAt])
+  @@map("contract_file")
+}
+
+model AcceptanceCertificate {
+  id                       String           @id @default(cuid())
+  orderId                  String           @unique
+  status                   AcceptanceStatus
+  supplierFileId           String
+  signedFileId             String?
+  uploadedBySupplierUserId String
+  signedByUserId           String?
+  uploadedAt               DateTime         @default(now())
+  signedAt                 DateTime?
+  updatedAt                DateTime         @updatedAt
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@map("acceptance_certificate")
+}
+
+model Invoice {
+  id                        String   @id @default(cuid())
+  orderId                   String
+  supplierId                String
+  invoiceNo                 String
+  amount                    Decimal  @db.Decimal(16, 2)
+  currency                  String   @default("CNY")
+  note                      String?
+  submittedBySupplierUserId String
+  createdAt                 DateTime @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([orderId, createdAt])
+  @@index([supplierId])
+  @@map("invoice")
+}
+
+model Attachment {
+  id             String         @id @default(cuid())
+  scope          AttachmentScope @default(TEMP)
+  scopeId        String?
+  kind           AttachmentKind  @default(GENERAL)
+  fileName       String
+  mimeType       String
+  size           Int
+  storageKey     String
+  uploadedByType UploaderType
+  uploadedById   String
+  createdAt      DateTime       @default(now())
+  expiresAt      DateTime?
+
+  @@index([scope, scopeId])
+  @@map("attachment")
+}
+
+model AuditLog {
+  id         String         @id @default(cuid())
+  actorType  AuditActorType
+  actorId    String?
+  actorName  String?
+  action     String
+  targetType String
+  targetId   String
+  summary    String?
+  beforeData Json?
+  afterData  Json?
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime       @default(now())
+
+  @@index([targetType, targetId])
+  @@index([actorType, actorId])
+  @@index([createdAt])
+  @@map("audit_log")
+}
+
+model MailLog {
+  id          String     @id @default(cuid())
+  templateKey String
+  toEmails    String
+  ccEmails    String?
+  subject     String
+  status      MailStatus @default(PENDING)
+  attempts    Int        @default(0)
+  error       String?
+  relatedType String?
+  relatedId   String?
+  payload     Json?
+  createdAt   DateTime   @default(now())
+  sentAt      DateTime?
+
+  @@index([status, createdAt])
+  @@index([relatedType, relatedId])
+  @@map("mail_log")
+}
+
+model SystemSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@map("system_setting")
+}

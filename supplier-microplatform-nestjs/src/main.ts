@@ -1,10 +1,75 @@
+import 'dotenv/config';
+import { randomUUID } from 'node:crypto';
 import { NestFactory } from '@nestjs/core';
+import { StandardSchemaValidationPipe } from '@nestjs/common';
+import express from 'express';
+import { toNodeHandler } from 'better-auth/node';
 import { AppModule } from './app.module.js';
+import { AllExceptionsFilter } from './common/filters/all-exceptions.filter.js';
+import { ResponseEnvelopeInterceptor } from './common/interceptors/response-envelope.interceptor.js';
+import { INTERNAL_AUTH, SUPPLIER_AUTH } from './auth/auth.tokens.js';
+import type { InternalAuth, SupplierAuth } from './auth/auth.tokens.js';
+import { env } from './config/env.js';
 
-async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-  const port = process.env.PORT ?? 3100;
-  await app.listen(port);
-  console.log(`Application is running on http://localhost:${port}`);
+async function bootstrap(): Promise<void> {
+  const app = await NestFactory.create(AppModule, { bodyParser: false });
+  app.setGlobalPrefix('api');
+  app.useGlobalFilters(new AllExceptionsFilter());
+  app.useGlobalInterceptors(new ResponseEnvelopeInterceptor());
+  app.useGlobalPipes(new StandardSchemaValidationPipe());
+  app.enableShutdownHooks();
+
+  const expressApp = app.getHttpAdapter().getInstance();
+  expressApp.disable('x-powered-by');
+  expressApp.use(
+    (
+      request: express.Request,
+      response: express.Response,
+      next: express.NextFunction,
+    ) => {
+      const requestId = request.header('x-request-id') ?? randomUUID();
+      (request as express.Request & { requestId: string }).requestId =
+        requestId;
+      response.setHeader('x-request-id', requestId);
+      next();
+    },
+  );
+
+  const internalAuth = app.get<InternalAuth>(INTERNAL_AUTH);
+  const supplierAuth = app.get<SupplierAuth>(SUPPLIER_AUTH);
+
+  // Better Auth 需要原始请求体，必须在 express.json 之前挂载。
+  // 平台不提供公开注册：两套体系均拦截 sign-up 路由，账号仅由内部管理员创建。
+  expressApp.use(
+    ['/api/auth/internal', '/api/auth/supplier'],
+    (
+      request: express.Request,
+      response: express.Response,
+      next: express.NextFunction,
+    ) => {
+      if (request.originalUrl.includes('/sign-up')) {
+        response.status(404).json({ code: 'NOT_FOUND', message: 'Not Found' });
+        return;
+      }
+      next();
+    },
+  );
+  expressApp.all(
+    '/api/auth/internal/{*splat}',
+    toNodeHandler(internalAuth as never),
+  );
+  expressApp.all(
+    '/api/auth/supplier/{*splat}',
+    toNodeHandler(supplierAuth as never),
+  );
+
+  expressApp.use(express.json({ limit: '2mb' }));
+  expressApp.use(express.urlencoded({ extended: true, limit: '2mb' }));
+
+  await app.listen(env.PORT);
+  console.log(
+    `API 已启动: http://localhost:${env.PORT}/api（环境: ${env.NODE_ENV}）`,
+  );
 }
+
 await bootstrap();
