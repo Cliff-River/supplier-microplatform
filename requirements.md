@@ -1,6 +1,6 @@
 # 供应商微平台 —— 需求与设计开发方案
 
-> 文档版本：v1.5（2026-11-24）
+> 文档版本：v1.6（2026-11-24）
 > 适用项目：`supplier-microplatform-nestjs`（后端）、`supplier-microplatform-nextjs`（前端）
 > 说明：本文在原始需求基础上补齐总体架构、账号权限、状态机、数据模型、API、邮件与**逐页设计方案**。文中标注「设计假设」的条目为当前方案约定，实施前可调整。
 > v1.1 变更：采纳评审意见——增加可选验收单、供应商历史报价、报价对比增强；明确订单完成人；发票审核移出本期；账号首次登录强制改密；附件签名下载；新增审计日志与 ADR。
@@ -8,6 +8,7 @@
 > v1.3 变更：补充「选标 → 生成采购申请书 → 下单」完整链路；采购申请书计划由大模型生成，明确移出本期，本期选标即下单（见 1.6-A、ADR-013）。
 > v1.4 变更：明确一标一单与合同创建时机；补充审计数据边界与保留期；术语表增加支付证明单；测试补充 award 不产生采购申请书。
 > v1.5 变更：补齐合同线下签署完成的页面入口与验收项；明确验收单版本规则（签署前可重传、签署后禁止）；订单完成后内部仍可签署；明确本期发票金额与重复发票号不校验；补充归档项目只读表现。
+> v1.6 变更：明确依赖版本策略——Prisma `>=7.10 <8.0`、Better Auth `>=1.7 <1.8`，其余依赖取兼容的最新稳定版。
 
 ## 目录
 
@@ -193,14 +194,16 @@ flowchart LR
 | 前端测试 | Vitest + Testing Library + jsdom | 已配置 |
 | 后端框架 | NestJS 12（ESM） | `@nestjs/platform-express`，默认端口 3100 |
 | 校验 | Zod + `StandardSchemaValidationPipe` | Nest 12 推荐方式，避免 class-validator 装饰器 |
-| ORM | Prisma | 新增依赖；`relationMode = "prisma"` |
+| ORM | Prisma | `>=7.10 <8.0`（新增依赖）；`relationMode = "prisma"` |
 | 数据库 | PostgreSQL | `postgresql://postgres:prisma@localhost:5432/supplier_microplatform` |
-| 认证 | Better Auth | `emailAndPassword` + `username` 插件，双实例 |
+| 认证 | Better Auth | `>=1.7 <1.8`（`better-auth`）；`emailAndPassword` + `username` 插件，双实例 |
 | 邮件 | `@nestjs/mail`（Nodemailer） | 若版本不可用则退回 `nodemailer` |
 | 定时任务 | `@nestjs/schedule` | 询价到期自动关闭、报价截止校验 |
 | 包管理 | pnpm | 两个子项目各自维护 `pnpm-lock.yaml` |
 
 > 注意：NestJS 12 与 Next.js 16 均与常见版本存在破坏性差异，编码前先查阅各自 `AGENTS.md` 指向的官方文档（`node_modules/next/dist/docs/`、Nest 官方文档）。
+>
+> **依赖版本策略**：Prisma 固定 `>=7.10 <8.0`，Better Auth 固定 `>=1.7 <1.8`；其余新增依赖在兼容现有依赖（NestJS 12、Next.js 16、React 19、HeroUI v3、Tailwind 4）的前提下采用最新稳定版，并以 `pnpm-lock.yaml` 锁定。升级主版本前先验证 ESM、Prisma Client 生成与构建链兼容性。
 
 ### 2.3 请求链路与同源策略
 
@@ -1652,6 +1655,7 @@ flowchart TD
 6. 后端 ESM 约定：相对导入带 `.js`；使用 `import.meta.dirname` 替代 `__dirname`。
 7. 前端优先 HeroUI v3 复合组件与 Tailwind 工具类；避免内联样式与自定义 CSS 文件膨胀。
 8. 提交前运行：后端 `lint` + `test` + `build`；前端 `lint` + `test` + `build`。
+9. 依赖版本遵循 2.2 的策略：Prisma `>=7.10 <8.0`、Better Auth `>=1.7 <1.8` 固定区间；其余依赖取兼容现有依赖的最新稳定版，安装后提交 `pnpm-lock.yaml`，升级需跑通 `lint/test/build`。
 
 ### 13.2 文档
 
