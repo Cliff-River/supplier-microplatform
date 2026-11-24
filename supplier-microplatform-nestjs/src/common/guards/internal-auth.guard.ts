@@ -6,7 +6,12 @@ import {
 } from '@nestjs/common';
 import { fromNodeHeaders } from 'better-auth/node';
 import type { Request } from 'express';
-import { INTERNAL_AUTH, type InternalAuth } from '../../auth/auth.tokens.js';
+import {
+  INTERNAL_AUTH,
+  SUPPLIER_AUTH,
+  type InternalAuth,
+  type SupplierAuth,
+} from '../../auth/auth.tokens.js';
 import { AppException } from '../errors/app.exception.js';
 import { ErrorCode } from '../errors/error-codes.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
@@ -16,15 +21,19 @@ import type { AuthUser, InternalAuthUser } from '../types/auth-user.js';
 export class InternalAuthGuard implements CanActivate {
   constructor(
     @Inject(INTERNAL_AUTH) private readonly auth: InternalAuth,
+    @Inject(SUPPLIER_AUTH) private readonly supplierAuth: SupplierAuth,
     private readonly prisma: PrismaService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<Request>();
-    const session = await this.auth.api.getSession({
-      headers: fromNodeHeaders(request.headers),
-    });
+    const headers = fromNodeHeaders(request.headers);
+    const session = await this.auth.api.getSession({ headers });
     if (!session?.user) {
+      const supplierSession = await this.supplierAuth.api.getSession({ headers });
+      if (supplierSession?.user) {
+        throw AppException.forbidden('请使用内部账号登录');
+      }
       throw AppException.unauthenticated();
     }
 

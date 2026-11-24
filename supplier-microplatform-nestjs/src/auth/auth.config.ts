@@ -1,4 +1,5 @@
 import { betterAuth } from 'better-auth';
+import { APIError } from 'better-auth/api';
 import { prismaAdapter } from 'better-auth/adapters/prisma';
 import { username } from 'better-auth/plugins';
 import type { PrismaService } from '../prisma/prisma.service.js';
@@ -69,6 +70,22 @@ export function createInternalAuth(prisma: PrismaService, mail: MailService) {
       cookiePrefix: 'internal',
     },
     databaseHooks: {
+      session: {
+        create: {
+          before: async (session: { userId?: string }) => {
+            if (!session.userId) return;
+            const user = await prisma.internalUser.findUnique({
+              where: { id: session.userId },
+              select: { isActive: true, deletedAt: true },
+            });
+            if (!user || !user.isActive || user.deletedAt) {
+              throw new APIError('FORBIDDEN', {
+                message: '账号已停用，请联系管理员',
+              });
+            }
+          },
+        },
+      },
       account: {
         update: {
           after: async (account: { userId?: string; password?: string | null }) => {
@@ -136,6 +153,22 @@ export function createSupplierAuth(prisma: PrismaService, mail: MailService) {
       cookiePrefix: 'supplier',
     },
     databaseHooks: {
+      session: {
+        create: {
+          before: async (session: { userId?: string }) => {
+            if (!session.userId) return;
+            const user = await prisma.supplierUser.findUnique({
+              where: { id: session.userId },
+              select: { isActive: true, deletedAt: true },
+            });
+            if (!user || !user.isActive || user.deletedAt) {
+              throw new APIError('FORBIDDEN', {
+                message: '账号已停用，请联系采购方管理员',
+              });
+            }
+          },
+        },
+      },
       account: {
         update: {
           after: async (account: { userId?: string; password?: string | null }) => {

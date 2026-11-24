@@ -115,6 +115,10 @@ export function InquiryDetailClient({
   const [showReopen, setShowReopen] = useState(false);
   const [reopenDeadline, setReopenDeadline] = useState(defaultDeadline());
   const [reopenResend, setReopenResend] = useState(true);
+  const [sortKey, setSortKey] = useState<
+    "totalPrice" | "deliveryDays" | "ratingAvg"
+  >("totalPrice");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
   const detailQuery = useQuery({
     queryKey: ["inquiry", inquiryId],
@@ -223,6 +227,34 @@ export function InquiryDetailClient({
     .filter((value): value is number => value != null);
   const minDelivery = deliveryValues.length ? Math.min(...deliveryValues) : null;
   const awardable = inquiry.status === "CLOSED";
+
+  const sortedQuotes = [...inquiry.quotes].sort((a, b) => {
+    const direction = sortDir === "asc" ? 1 : -1;
+    if (sortKey === "totalPrice") {
+      return (Number(a.totalPrice) - Number(b.totalPrice)) * direction;
+    }
+    if (sortKey === "deliveryDays") {
+      if (a.deliveryDays == null && b.deliveryDays == null) return 0;
+      if (a.deliveryDays == null) return 1;
+      if (b.deliveryDays == null) return -1;
+      return (a.deliveryDays - b.deliveryDays) * direction;
+    }
+    return (
+      (Number(a.supplier.ratingAvg) - Number(b.supplier.ratingAvg)) * direction
+    );
+  });
+
+  const toggleSort = (key: "totalPrice" | "deliveryDays" | "ratingAvg") => {
+    if (sortKey === key) {
+      setSortDir((current) => (current === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSortKey(key);
+    setSortDir(key === "ratingAvg" ? "desc" : "asc");
+  };
+
+  const sortIndicator = (key: "totalPrice" | "deliveryDays" | "ratingAvg") =>
+    sortKey === key ? (sortDir === "asc" ? "↑" : "↓") : "";
 
   return (
     <div className="space-y-6">
@@ -457,7 +489,7 @@ export function InquiryDetailClient({
           <div>
             <h2 className="text-sm font-semibold text-slate-900">报价对比</h2>
             <p className="text-xs text-slate-400">
-              按总价从低到高排列，最低价与最短交期将高亮显示。
+              可按总价、交期、评级排序，最低价与最短交期将高亮显示。
             </p>
           </div>
           {inquiry.quotes.length > 0 ? (
@@ -480,10 +512,34 @@ export function InquiryDetailClient({
               <thead className="bg-slate-50 text-left text-xs text-slate-500">
                 <tr>
                   <th className="px-4 py-3 font-medium">供应商</th>
-                  <th className="px-4 py-3 font-medium">评级</th>
+                  <th className="px-4 py-3 font-medium">
+                    <button
+                      type="button"
+                      className="hover:text-slate-700"
+                      onClick={() => toggleSort("ratingAvg")}
+                    >
+                      评级 {sortIndicator("ratingAvg")}
+                    </button>
+                  </th>
                   <th className="px-4 py-3 font-medium">单价</th>
-                  <th className="px-4 py-3 font-medium">总价</th>
-                  <th className="px-4 py-3 font-medium">交期</th>
+                  <th className="px-4 py-3 font-medium">
+                    <button
+                      type="button"
+                      className="hover:text-slate-700"
+                      onClick={() => toggleSort("totalPrice")}
+                    >
+                      总价 {sortIndicator("totalPrice")}
+                    </button>
+                  </th>
+                  <th className="px-4 py-3 font-medium">
+                    <button
+                      type="button"
+                      className="hover:text-slate-700"
+                      onClick={() => toggleSort("deliveryDays")}
+                    >
+                      交期 {sortIndicator("deliveryDays")}
+                    </button>
+                  </th>
                   <th className="px-4 py-3 font-medium">有效期</th>
                   <th className="px-4 py-3 font-medium">版本 / 时间</th>
                   <th className="px-4 py-3 font-medium">报价附件</th>
@@ -493,7 +549,7 @@ export function InquiryDetailClient({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {inquiry.quotes.map((quote) => {
+                {sortedQuotes.map((quote) => {
                   const isLowest =
                     minTotal !== null && Number(quote.totalPrice) === minTotal;
                   const isFastest =

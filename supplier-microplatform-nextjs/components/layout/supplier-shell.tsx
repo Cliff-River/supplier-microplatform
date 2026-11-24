@@ -10,7 +10,7 @@ import { Icon, type IconName } from "@/components/icons";
 const navItems: Array<{ href: string; label: string; icon: IconName }> = [
   { href: "/supplier/dashboard", label: "工作台", icon: "dashboard" },
   { href: "/supplier/inquiries", label: "邀请询价", icon: "inbox" },
-  { href: "/supplier/quotes", label: "我的报价", icon: "file" },
+  { href: "/supplier/quote-history", label: "我的报价", icon: "file" },
   { href: "/supplier/orders", label: "我的订单", icon: "orders" },
   { href: "/supplier/account", label: "账号", icon: "users" },
 ];

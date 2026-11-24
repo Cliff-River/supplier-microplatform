@@ -198,6 +198,11 @@ export class StorageService implements OnModuleInit {
     ) {
       return true;
     }
+    // 内部用户共享查看全部业务数据，可访问任意已绑定业务的附件；
+    // 临时附件仍只允许上传者本人访问。
+    if (user.kind === 'INTERNAL') {
+      return attachment.scope !== 'TEMP';
+    }
     if (attachment.uploadedByType === 'SUPPLIER' && user.kind === 'SUPPLIER') {
       const uploader = await this.prisma.supplierUser.findUnique({
         where: { id: attachment.uploadedById },

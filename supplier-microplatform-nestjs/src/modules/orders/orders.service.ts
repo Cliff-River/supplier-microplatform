@@ -545,6 +545,9 @@ export class OrdersService {
     if (order.status === 'CANCELLED') {
       throw AppException.invalidState('订单已取消');
     }
+    if (order.status === 'COMPLETED') {
+      throw AppException.invalidState('订单已完成，无法上传验收单');
+    }
     if (order.acceptance?.status === 'SIGNED') {
       throw AppException.invalidState('验收单已签署，不可重新上传');
     }
@@ -612,6 +615,9 @@ export class OrdersService {
     }
     if (order.status === 'CANCELLED') {
       throw AppException.invalidState('订单已取消，无法提交发票');
+    }
+    if (order.status === 'COMPLETED') {
+      throw AppException.invalidState('订单已完成，无法提交发票');
     }
 
     const invoice = await this.prisma.invoice.create({
