@@ -3,7 +3,13 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useState,
+  type ReactNode,
+} from "react";
 import { getSession, signOut } from "@/lib/auth";
 import { Icon, type IconName } from "@/components/icons";
 
@@ -15,9 +21,52 @@ const navItems: Array<{ href: string; label: string; icon: IconName }> = [
   { href: "/supplier/account", label: "账号", icon: "users" },
 ];
 
+/** 纯展示导航；pathname 为 null 时用于 Suspense 占位，不带高亮。 */
+function NavLinks({ pathname }: { pathname: string | null }) {
+  return (
+    <>
+      {navItems.map((item) => {
+        const active =
+          pathname !== null &&
+          (pathname === item.href || pathname.startsWith(`${item.href}/`));
+        return (
+          <Link
+            key={item.href}
+            href={item.href}
+            className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition ${
+              active
+                ? "bg-blue-50 font-medium text-blue-700"
+                : "text-slate-600 hover:bg-slate-100"
+            }`}
+          >
+            <Icon name={item.icon} className="h-4 w-4" />
+            {item.label}
+          </Link>
+        );
+      })}
+    </>
+  );
+}
+
+function PathAwareNav() {
+  const pathname = usePathname();
+  return <NavLinks pathname={pathname} />;
+}
+
+function PathnameChangeListener({
+  onPathnameChange,
+}: {
+  onPathnameChange: () => void;
+}) {
+  const pathname = usePathname();
+  useEffect(() => {
+    onPathnameChange();
+  }, [pathname, onPathnameChange]);
+  return null;
+}
+
 export function SupplierShell({ children }: { children: ReactNode }) {
   const router = useRouter();
-  const pathname = usePathname();
   const queryClient = useQueryClient();
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -37,24 +86,14 @@ export function SupplierShell({ children }: { children: ReactNode }) {
     }
   }, [isLoading, router, session]);
 
-  useEffect(() => {
+  const handlePathnameChange = useCallback(() => {
     // 路由变化时关闭移动端菜单，属于与浏览历史同步的必要副作用。
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMobileOpen(false);
-  }, [pathname]);
+  }, []);
 
-  if (isLoading || !session?.user) {
-    return (
-      <div className="grid min-h-screen place-items-center bg-slate-50">
-        <div className="flex items-center gap-3 text-sm text-slate-500">
-          <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600" />
-          正在加载…
-        </div>
-      </div>
-    );
-  }
-
-  const user = session.user;
+  // 布局不阻塞渲染：登录态加载期间照常渲染子页面，
+  // 页面自身展示加载态，避免整段导航被丢弃。
+  const user = session?.user;
 
   async function handleLogout() {
     await signOut("supplier");
@@ -64,6 +103,9 @@ export function SupplierShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen bg-slate-50">
+      <Suspense fallback={null}>
+        <PathnameChangeListener onPathnameChange={handlePathnameChange} />
+      </Suspense>
       <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 lg:px-8">
           <div className="flex items-center gap-3">
@@ -79,37 +121,29 @@ export function SupplierShell({ children }: { children: ReactNode }) {
           </div>
 
           <nav className="hidden items-center gap-1 lg:flex">
-            {navItems.map((item) => {
-              const active =
-                pathname === item.href || pathname.startsWith(`${item.href}/`);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition ${
-                    active
-                      ? "bg-blue-50 font-medium text-blue-700"
-                      : "text-slate-600 hover:bg-slate-100"
-                  }`}
-                >
-                  <Icon name={item.icon} className="h-4 w-4" />
-                  {item.label}
-                </Link>
-              );
-            })}
+            <Suspense fallback={<NavLinks pathname={null} />}>
+              <PathAwareNav />
+            </Suspense>
           </nav>
 
           <div className="flex items-center gap-2">
             <span className="hidden text-sm text-slate-600 sm:inline">
-              {user.name}
+              {user?.name ?? (isLoading ? "正在加载…" : "")}
             </span>
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50"
-            >
-              退出
-            </button>
+            {user ? (
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50"
+              >
+                退出
+              </button>
+            ) : (
+              <span
+                className="h-5 w-5 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600"
+                aria-label={isLoading ? "正在加载" : "未登录"}
+              />
+            )}
             <button
               type="button"
               className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-600 lg:hidden"
@@ -122,16 +156,9 @@ export function SupplierShell({ children }: { children: ReactNode }) {
         </div>
         {mobileOpen ? (
           <nav className="border-t border-slate-200 bg-white px-4 py-2 lg:hidden">
-            {navItems.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm text-slate-700 hover:bg-slate-100"
-              >
-                <Icon name={item.icon} className="h-4 w-4" />
-                {item.label}
-              </Link>
-            ))}
+            <Suspense fallback={<NavLinks pathname={null} />}>
+              <PathAwareNav />
+            </Suspense>
           </nav>
         ) : null}
       </header>

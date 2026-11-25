@@ -1,10 +1,7 @@
 import type { ReactNode } from "react";
 import { SupplierShell } from "@/components/layout/supplier-shell";
 
-// 供应商端依赖登录态与当前路径，采用阻塞渲染；
-// 动态路由页面内部使用 Suspense 包裹。
-export const instant = false;
-
+// 布局只提供静态外壳，登录态加载不阻塞子页面渲染。
 export default function SupplierPortalLayout({
   children,
 }: {
