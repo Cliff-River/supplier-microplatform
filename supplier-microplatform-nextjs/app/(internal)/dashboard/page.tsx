@@ -47,6 +47,8 @@ export default function DashboardPage() {
   const { data, isLoading, error } = useQuery({
     queryKey: ["dashboard-overview"],
     queryFn: () => apiFetch<Overview>("/dashboard/overview"),
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
   });
 
   return (

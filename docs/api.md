@@ -146,10 +146,10 @@
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| POST | `/api/files` | `multipart/form-data` 上传，返回 `{ id, fileName, size }`；初始为 TEMP |
+| POST | `/api/files` | `multipart/form-data` 上传，返回 `{ id, fileName, size }`；初始为 TEMP。仅允许 PDF/JPG/PNG/Word/Excel，校验 MIME 与扩展名白名单，文件名自动清洗 |
 | POST | `/api/files/:id/access-token` | 校验会话与数据权限，返回 5 分钟有效签名 URL |
 | GET | `/api/files/:id/download?expires=…&signature=…` | 校验签名、会话与权限后流式下载 |
-| DELETE | `/api/files/:id` | 仅未绑定业务的临时附件 |
+| DELETE | `/api/files/:id` | 仅上传者本人、未绑定业务的临时附件；删除数据库记录与磁盘文件 |
 
 ## 6. 错误码
 
@@ -168,6 +168,7 @@
 | 409 | `ACCEPTANCE_NOT_UPLOADED` | 验收单尚未上传 |
 | 409 | `ACCEPTANCE_ALREADY_SIGNED` | 验收单已签署 |
 | 409 | `DUPLICATE_USERNAME` / `DUPLICATE_EMAIL` | 用户名/邮箱冲突 |
+| 415 | `FILE_TYPE_NOT_ALLOWED` | 文件扩展名或 MIME 不在白名单内 |
 | 413 | `FILE_TOO_LARGE` | 超出上传大小 |
 | 422 | `QUOTE_DEADLINE_PASSED` | 报价截止 |
 | 429 | `TOO_MANY_REQUESTS` | 登录/找回密码/重置密码限流 |

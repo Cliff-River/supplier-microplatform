@@ -1,5 +1,6 @@
 import {
   Controller,
+  Delete,
   Get,
   Param,
   Post,
@@ -46,6 +47,12 @@ export class FilesController {
       size: attachment.size,
       createdAt: attachment.createdAt,
     };
+  }
+
+  @Delete(':id')
+  async remove(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    await this.storage.deleteTemp(id, { type: user.kind, id: user.id });
+    return { deleted: true };
   }
 
   @Post(':id/access-token')

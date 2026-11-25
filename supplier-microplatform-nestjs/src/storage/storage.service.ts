@@ -2,7 +2,7 @@ import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { mkdir, unlink, writeFile } from 'node:fs/promises';
 import { extname, join, resolve } from 'node:path';
-import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
+import { HttpStatus, Inject, Injectable, OnModuleInit } from '@nestjs/common';
 import { ENV, type Env } from '../config/env.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AppException } from '../common/errors/app.exception.js';
@@ -26,6 +26,59 @@ export interface SaveFileOptions {
     | 'INVOICE_FILE'
     | 'PAYMENT_REQUEST';
   expiresAt?: Date | null;
+}
+
+/** 允许上传的扩展名与 MIME 类型白名单（必须成对匹配）。 */
+const ALLOWED_MIME_TYPES: Record<string, readonly string[]> = {
+  '.pdf': ['application/pdf'],
+  '.jpg': ['image/jpeg'],
+  '.jpeg': ['image/jpeg'],
+  '.png': ['image/png'],
+  '.doc': ['application/msword'],
+  '.docx': [
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  ],
+  '.xls': ['application/vnd.ms-excel'],
+  '.xlsx': [
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  ],
+};
+
+const ALLOWED_EXTENSIONS = Object.keys(ALLOWED_MIME_TYPES).join('、');
+
+/** 去掉路径与非法字符，保留扩展名并限制长度。 */
+function sanitizeFileName(name: string): string {
+  const stripped = Array.from(name)
+    .filter((char) => {
+      const code = char.codePointAt(0) ?? 0;
+      return code >= 0x20 && code !== 0x7f;
+    })
+    .join('');
+  const base = stripped
+    .replace(/[\\/]/g, '_')
+    .replace(/[<>:"|?*]/g, '_')
+    .trim();
+  const sanitized = base.slice(-200);
+  return sanitized.length > 0 ? sanitized : 'file';
+}
+
+function assertAllowedUpload(fileName: string, mimeType: string): void {
+  const extension = extname(fileName).toLowerCase();
+  const allowedMimes = ALLOWED_MIME_TYPES[extension];
+  if (!allowedMimes) {
+    throw new AppException(
+      ErrorCode.FILE_TYPE_NOT_ALLOWED,
+      `不支持的文件类型，仅允许 ${ALLOWED_EXTENSIONS}`,
+      HttpStatus.UNSUPPORTED_MEDIA_TYPE,
+    );
+  }
+  if (!allowedMimes.includes(mimeType.toLowerCase())) {
+    throw new AppException(
+      ErrorCode.FILE_TYPE_NOT_ALLOWED,
+      '文件 MIME 类型与扩展名不匹配',
+      HttpStatus.UNSUPPORTED_MEDIA_TYPE,
+    );
+  }
 }
 
 @Injectable()
@@ -57,12 +110,14 @@ export class StorageService implements OnModuleInit {
     if (!file?.buffer) {
       throw AppException.validation('未收到文件');
     }
+    const fileName = sanitizeFileName(file.originalname);
+    assertAllowedUpload(fileName, file.mimetype || '');
     const now = new Date();
     const stamp = shanghaiDateStamp(now);
     const dir = join(stamp.slice(0, 4), stamp.slice(4, 6));
     await mkdir(join(this.root, dir), { recursive: true });
 
-    const extension = extname(file.originalname).slice(0, 16);
+    const extension = extname(fileName).slice(0, 16);
     const storageKey = join(dir, `${randomUUID()}${extension}`);
     await writeFile(join(this.root, storageKey), file.buffer);
 
@@ -71,7 +126,7 @@ export class StorageService implements OnModuleInit {
         scope: options.scope ?? 'TEMP',
         scopeId: options.scopeId ?? null,
         kind: options.kind ?? 'GENERAL',
-        fileName: file.originalname,
+        fileName,
         mimeType: file.mimetype || 'application/octet-stream',
         size: file.size,
         storageKey,
@@ -97,6 +152,21 @@ export class StorageService implements OnModuleInit {
     } catch {
       // 文件可能已被清理，忽略
     }
+  }
+
+  /** 删除本人上传且尚未绑定业务的临时附件。 */
+  async deleteTemp(attachmentId: string, uploader: Uploader): Promise<void> {
+    const attachment = await this.getOrThrow(attachmentId);
+    if (
+      attachment.uploadedByType !== uploader.type ||
+      attachment.uploadedById !== uploader.id
+    ) {
+      throw AppException.forbidden('附件不属于当前账号');
+    }
+    if (attachment.scope !== 'TEMP') {
+      throw AppException.invalidState('仅未绑定业务的临时附件可删除');
+    }
+    await this.remove(attachmentId);
   }
 
   streamFor(storageKey: string) {

@@ -123,6 +123,8 @@ export function InquiryDetailClient({
   const detailQuery = useQuery({
     queryKey: ["inquiry", inquiryId],
     queryFn: () => apiFetch<InquiryDetail>(`/inquiries/${inquiryId}`),
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
   });
 
   const refresh = () => {

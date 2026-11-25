@@ -91,6 +91,8 @@ export function SupplierInquiryDetailClient({
     queryKey: ["supplier-inquiry", inquiryId],
     queryFn: () =>
       apiFetch<SupplierInquiryDetail>(`/supplier/inquiries/${inquiryId}`),
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
   });
 
   const inquiry = detailQuery.data;

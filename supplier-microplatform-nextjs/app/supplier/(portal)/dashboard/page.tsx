@@ -38,6 +38,8 @@ export default function SupplierDashboardPage() {
   const { data, isLoading, error } = useQuery({
     queryKey: ["supplier-dashboard"],
     queryFn: () => apiFetch<Overview>("/supplier/dashboard/overview"),
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
   });
 
   return (
