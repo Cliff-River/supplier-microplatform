@@ -1,6 +1,3 @@
--- CreateSchema
-CREATE SCHEMA IF NOT EXISTS "public";
-
 -- CreateEnum
 CREATE TYPE "InternalRole" AS ENUM ('ADMIN', 'MEMBER');
 
@@ -430,12 +427,12 @@ CREATE TABLE "mail_log" (
 );
 
 -- CreateTable
-CREATE TABLE "SystemSetting" (
+CREATE TABLE "system_setting" (
     "key" TEXT NOT NULL,
     "value" TEXT NOT NULL,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "SystemSetting_pkey" PRIMARY KEY ("key")
+    CONSTRAINT "system_setting_pkey" PRIMARY KEY ("key")
 );
 
 -- CreateIndex
@@ -575,4 +572,3 @@ CREATE INDEX "mail_log_status_createdAt_idx" ON "mail_log"("status", "createdAt"
 
 -- CreateIndex
 CREATE INDEX "mail_log_relatedType_relatedId_idx" ON "mail_log"("relatedType", "relatedId");
-
