@@ -35,6 +35,5 @@
     "typescript": "^5",
     "vite-tsconfig-paths": "^6.1.1",
     "vitest": "^5.1.1"
-  },
-  "packageManager": "pnpm@12.21.0"
+  }
 }
