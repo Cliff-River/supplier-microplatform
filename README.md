@@ -24,14 +24,15 @@ flowchart LR
 | --- | --- | --- |
 | 前端 | Next.js 16 App Router、React 19、HeroUI v3、Tailwind CSS 4、TanStack Query | `supplier-microplatform-nextjs/` |
 | 后端 | NestJS 12（ESM）、Prisma 7、Better Auth 1.7、Zod、ExcelJS | `supplier-microplatform-nestjs/` |
-| 本地依赖 | PostgreSQL 16 + Mailpit（Docker Compose） | `docker-compose.yml` |
+| 本地依赖 | PostgreSQL 16 + Mailpit（Docker Compose） | `dev-containers/` |
 | 文档 | 架构、数据模型、API、页面、ADR | `docs/` |
 
 ## 目录结构
 
 ```
 supplier-microplatform/
-├── docker-compose.yml          # PostgreSQL 16 + Mailpit
+├── dev-containers/
+│   └── docker-compose.yml      # 本地 PostgreSQL 16 + Mailpit
 ├── requirements.md             # 需求与设计开发方案（v1.6）
 ├── docs/                       # 工程文档与 ADR
 ├── supplier-microplatform-nestjs/
@@ -56,8 +57,8 @@ supplier-microplatform/
 ### 1. 启动本地依赖
 
 ```bash
-docker compose up -d
-docker compose ps          # 等 postgres 变为 healthy
+docker compose -f dev-containers/docker-compose.yml up -d
+docker compose -f dev-containers/docker-compose.yml ps     # 等 postgres 变为 healthy
 ```
 
 | 服务 | 地址 |

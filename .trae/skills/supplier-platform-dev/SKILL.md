@@ -14,7 +14,7 @@ description: 供应商微平台的开发速查：运行命令、双账号认证�
 ## 本地启动
 
 ```bash
-docker compose up -d           # PostgreSQL :5433 + Mailpit :1025/:8025
+docker compose -f dev-containers/docker-compose.yml up -d   # PostgreSQL :5433 + Mailpit :1025/:8025
 cd supplier-microplatform-nestjs && pnpm install && pnpm db:deploy && pnpm db:seed && pnpm start:dev
 cd supplier-microplatform-nextjs && pnpm install && pnpm dev
 ```

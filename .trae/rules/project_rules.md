@@ -14,7 +14,7 @@
 - `supplier-microplatform-nestjs/`：只放后端代码、Prisma Schema/迁移、后端配置；不写前端组件。
 - `supplier-microplatform-nextjs/`：只放前端页面、组件、样式与客户端工具；不直接访问数据库。
 - `docs/`：工程文档与 ADR；`requirements.md` 为需求与验收的单一事实来源。
-- 根目录只放跨项目文件（README、docker-compose、requirements、docs、.trae）。
+- 根目录只放跨项目文件（README、requirements、docs、.trae）与本地容器编排目录 `dev-containers/`。
 
 ## 提交前检查
 

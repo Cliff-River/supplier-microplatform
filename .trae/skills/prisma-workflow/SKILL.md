@@ -7,7 +7,7 @@ description: 本项目的 Prisma 7 工作流：确保数据库、生成 Client�
 
 ## 环境
 
-- PostgreSQL 16，本地由根目录 `docker-compose.yml` 启动，映射 `127.0.0.1:5433`。
+- PostgreSQL 16，本地由 `dev-containers/docker-compose.yml` 启动，映射 `127.0.0.1:5433`。
 - `DATABASE_URL=postgresql://postgres:prisma@localhost:5433/supplier_microplatform`。
 - Client 生成到 `src/generated/prisma`，不要手工修改生成文件。
 
@@ -49,7 +49,7 @@ pnpm start:prod
 
 - `relationMode = "prisma"`，数据库层没有外键；级联删除与存在性由应用层负责。
 - 关键唯一性依赖 `@@unique`/`@unique` 索引兜底（如 `order.inquiryId`、`quote(inquiryId,supplierId)`）。
-- 若本地数据库与 Schema 漂移，先用 `prisma migrate diff` 查看差异，再决定迁移或修复；不要在未备份时执行 `docker compose down -v`。
+- 若本地数据库与 Schema 漂移，先用 `prisma migrate diff` 查看差异，再决定迁移或修复；不要在未备份时执行 `docker compose -f dev-containers/docker-compose.yml down -v`。
 
 ## 种子
 
@@ -60,4 +60,4 @@ pnpm start:prod
 ## 回滚
 
 - 开发环境优先通过新迁移修正，不手工改库。
-- 需要重建本地库时：`docker compose down -v && docker compose up -d`，再 `pnpm db:deploy && pnpm db:seed`（会清空数据，先确认）。
+- 需要重建本地库时（仓库根目录）：`docker compose -f dev-containers/docker-compose.yml down -v`，再 `docker compose -f dev-containers/docker-compose.yml up -d`，最后 `pnpm db:deploy && pnpm db:seed`（会清空数据，先确认）。

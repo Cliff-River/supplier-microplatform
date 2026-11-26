@@ -15,7 +15,7 @@
 
 ## 决策
 
-采用方案 2。根目录 `docker-compose.yml` 启动：
+采用方案 2。`dev-containers/docker-compose.yml` 启动（项目名固定为 `supplier-microplatform`，避免目录调整后数据卷改名）：
 - `postgres:16-alpine`，映射 `127.0.0.1:5433:5432`，数据持久化到 `pgdata` 卷；
 - `axllent/mailpit`，SMTP `1025`，Web UI `8025`。
 

@@ -318,7 +318,7 @@ lib/
 
 ### 2.6 本地开发环境（Docker Compose）
 
-本地开发使用仓库根目录的 `docker-compose.yml` 一键启动两个容器，保证团队成员环境一致。该文件只服务本地与 CI，不参与生产部署。
+本地开发使用 `dev-containers/docker-compose.yml` 一键启动两个容器，保证团队成员环境一致。该文件只服务本地与 CI，不参与生产部署。
 
 | 服务 | 镜像 | 端口（仅绑定 `127.0.0.1`） | 用途 |
 | --- | --- | --- | --- |
@@ -326,6 +326,8 @@ lib/
 | `mailpit` | `axllent/mailpit` | `1025`（SMTP）/ `8025`（Web UI） | 本地邮件收件箱，只收不发，可查看 HTML、附件与原始 MIME |
 
 ```yaml
+name: supplier-microplatform
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -335,7 +337,7 @@ services:
       POSTGRES_DB: supplier_microplatform
       TZ: Asia/Shanghai
     ports:
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -360,8 +362,8 @@ volumes:
 首次启动流程：
 
 ```bash
-docker compose up -d      # 启动 PostgreSQL 与 Mailpit
-docker compose ps         # 等 postgres 变为 healthy
+docker compose -f dev-containers/docker-compose.yml up -d   # 启动 PostgreSQL 与 Mailpit
+docker compose -f dev-containers/docker-compose.yml ps      # 等 postgres 变为 healthy
 pnpm db:migrate           # 建表（容器已自动建库，db:ensure 可跳过）
 pnpm db:seed              # 初始化管理员
 ```
@@ -371,8 +373,8 @@ pnpm db:seed              # 初始化管理员
 约定：
 
 - 本地邮件永远发往 Mailpit，不会投递到真实邮箱；生产通过环境变量切换到真实 SMTP。
-- 端口被占用时改映射（如 `5433:5432`），并同步修改 `DATABASE_URL`。
-- `docker compose down` 保留数据；`docker compose down -v` 清空数据卷后需重新迁移与种子。
+- 端口被占用时改映射（如 `5434:5432`），并同步修改 `DATABASE_URL`。
+- `docker compose -f dev-containers/docker-compose.yml down` 保留数据；加 `-v` 清空数据卷后需重新迁移与种子。
 - 本地无 Docker 时，可自行安装 PostgreSQL，并用 Mailpit 本地模式或 Ethereal 临时账号替代邮件测试。
 
 ---
